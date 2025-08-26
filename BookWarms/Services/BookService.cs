@@ -27,14 +27,35 @@ namespace BookWarms.Services
         }
         public async Task<bool> UpdateBookAsync(Book book)
         {
-            _context.Books.Update(book);
+            var existing = await _context.Books.FirstOrDefaultAsync(b => b.Id == book.Id);
+            if (existing == null) return false;
+
+            existing.Title = book.Title;
+            existing.Author = book.Author;
+            existing.Genre = book.Genre;
+            existing.Description = book.Description;
+            existing.PageCount = book.PageCount;
+
+            _context.Books.Update(existing);
             return await _context.SaveChangesAsync() > 0;
         }
+
+        //public async Task<bool> DeleteBookAsync(int id)
+        //{
+        //    var book = await GetBookByIdAsync(id);
+        //    if (book == null) return false;
+        //    _context.Books.Remove(book);
+        //    return await _context.SaveChangesAsync() > 0;
+        //}
+
+        // Soft Delete
         public async Task<bool> DeleteBookAsync(int id)
         {
-            var book = await GetBookByIdAsync(id);
+            var book = await _context.Books.FirstOrDefaultAsync(b => b.Id == id);
             if (book == null) return false;
-            _context.Books.Remove(book);
+
+            book.IsDeleted = true;
+            _context.Books.Update(book);
             return await _context.SaveChangesAsync() > 0;
         }
         public List<Book> GetAllBooks()

@@ -43,15 +43,27 @@ namespace BookWarms.Services
             return await _context.SaveChangesAsync() > 0;
         }
 
-        // Изтриване на потребител
+        // Soft delete
         public async Task<bool> DeleteUserAsync(int id)
         {
-            var user = await GetUserByIdAsync(id);
-            if (user == null) return false;
+            var user = await _context.Users.FindAsync(id);
+            if (user == null || user.IsDeleted) return false;
 
-            _context.Users.Remove(user);
+            user.IsDeleted = true;
+            _context.Users.Update(user);
             return await _context.SaveChangesAsync() > 0;
         }
+
+        //// Изтриване на потребител
+        //public async Task<bool> DeleteUserAsync(int id)
+        //{
+        //    var user = await GetUserByIdAsync(id);
+        //    if (user == null) return false;
+
+        //    _context.Users.Remove(user);
+        //    return await _context.SaveChangesAsync() > 0;
+        //}
+
     }
 }
 

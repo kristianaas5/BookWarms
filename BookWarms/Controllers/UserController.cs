@@ -16,7 +16,7 @@ namespace BookWarms.Controllers
         {
             _userService = userService;
         }
-        //
+        
 
         // Create
         [HttpPost]
@@ -64,10 +64,9 @@ namespace BookWarms.Controllers
         public async Task<IActionResult> DeleteUser(int id)
         {
             var deleted = await _userService.DeleteUserAsync(id);
-            if (deleted)
-                return Ok();
-            else
-                return NotFound();
+            if (!deleted) return NotFound();
+
+            return NoContent();
         }
     }
 }

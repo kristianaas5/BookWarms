@@ -114,7 +114,7 @@ public class UserControllerTests
 
         var result = await _controller.DeleteUser(addedUser.Id);
 
-        Assert.IsType<OkResult>(result);
+        Assert.IsType<NoContentResult>(result);
     }
 
     [Fact]

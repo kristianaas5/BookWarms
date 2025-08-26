@@ -4,6 +4,7 @@ using BookWarms.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BookWarms.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250813153047_AddLibrarySeedData")]
+    partial class AddLibrarySeedData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -967,9 +970,6 @@ namespace BookWarms.Migrations
                     b.Property<int>("BookId")
                         .HasColumnType("int");
 
-                    b.Property<int>("ShelfType")
-                        .HasColumnType("int");
-
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 
@@ -986,70 +986,60 @@ namespace BookWarms.Migrations
                         {
                             Id = 1,
                             BookId = 1,
-                            ShelfType = 2,
                             UserId = 1
                         },
                         new
                         {
                             Id = 2,
                             BookId = 2,
-                            ShelfType = 1,
                             UserId = 1
                         },
                         new
                         {
                             Id = 3,
                             BookId = 3,
-                            ShelfType = 2,
                             UserId = 2
                         },
                         new
                         {
                             Id = 4,
                             BookId = 4,
-                            ShelfType = 2,
                             UserId = 2
                         },
                         new
                         {
                             Id = 5,
                             BookId = 5,
-                            ShelfType = 2,
                             UserId = 3
                         },
                         new
                         {
                             Id = 6,
                             BookId = 6,
-                            ShelfType = 2,
                             UserId = 3
                         },
                         new
                         {
                             Id = 7,
                             BookId = 7,
-                            ShelfType = 2,
                             UserId = 4
                         },
                         new
                         {
                             Id = 8,
                             BookId = 8,
-                            ShelfType = 2,
                             UserId = 4
                         },
                         new
                         {
                             Id = 9,
                             BookId = 9,
-                            ShelfType = 2,
                             UserId = 5
                         },
                         new
                         {
                             Id = 10,
                             BookId = 10,
-                            ShelfType = 0,
                             UserId = 5
                         });
                 });
@@ -1076,11 +1066,17 @@ namespace BookWarms.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
-
                     b.ToTable("ReadingStats", (string)null);
 
                     b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            BooksRead = 2,
+                            PagesRead = 508,
+                            UserId = 1,
+                            Year = 2025
+                        },
                         new
                         {
                             Id = 2,
@@ -1095,14 +1091,6 @@ namespace BookWarms.Migrations
                             BooksRead = 1,
                             PagesRead = 324,
                             UserId = 3,
-                            Year = 2025
-                        },
-                        new
-                        {
-                            Id = 1,
-                            BooksRead = 2,
-                            PagesRead = 508,
-                            UserId = 1,
                             Year = 2025
                         });
                 });
@@ -1137,9 +1125,17 @@ namespace BookWarms.Migrations
                     b.HasData(
                         new
                         {
+                            Id = 1,
+                            Date = new DateTime(2025, 7, 8, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            LibraryId = 1,
+                            Rating = 5,
+                            ReviewText = "A timeless classic!"
+                        },
+                        new
+                        {
                             Id = 2,
                             Date = new DateTime(2025, 7, 9, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            LibraryId = 1,
+                            LibraryId = 4,
                             Rating = 4,
                             ReviewText = "A delightful read!"
                         },
@@ -1147,17 +1143,44 @@ namespace BookWarms.Migrations
                         {
                             Id = 3,
                             Date = new DateTime(2025, 7, 10, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            LibraryId = 2,
+                            LibraryId = 3,
                             Rating = 5,
                             ReviewText = "A powerful story about justice."
-                        },
+                        });
+                });
+
+            modelBuilder.Entity("BookWarms.Models.Shelf", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("LibraryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShelfType")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LibraryId");
+
+                    b.ToTable("Shelves", (string)null);
+
+                    b.HasData(
                         new
                         {
                             Id = 1,
-                            Date = new DateTime(2025, 7, 8, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             LibraryId = 1,
-                            Rating = 5,
-                            ReviewText = "A timeless classic!"
+                            ShelfType = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            LibraryId = 2,
+                            ShelfType = 0
                         });
                 });
 
@@ -1276,26 +1299,13 @@ namespace BookWarms.Migrations
 
             modelBuilder.Entity("BookWarms.Models.Library", b =>
                 {
-                    b.HasOne("BookWarms.Models.Book", "Book")
+                    b.HasOne("BookWarms.Models.Book", null)
                         .WithMany()
                         .HasForeignKey("BookId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("BookWarms.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Book");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("BookWarms.Models.ReadingStat", b =>
-                {
-                    b.HasOne("BookWarms.Models.Library", null)
+                    b.HasOne("BookWarms.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1304,13 +1314,20 @@ namespace BookWarms.Migrations
 
             modelBuilder.Entity("BookWarms.Models.Review", b =>
                 {
-                    b.HasOne("BookWarms.Models.Library", "Library")
+                    b.HasOne("BookWarms.Models.Library", null)
                         .WithMany()
                         .HasForeignKey("LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
 
-                    b.Navigation("Library");
+            modelBuilder.Entity("BookWarms.Models.Shelf", b =>
+                {
+                    b.HasOne("BookWarms.Models.Library", null)
+                        .WithMany()
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

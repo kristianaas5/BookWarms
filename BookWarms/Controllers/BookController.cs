@@ -53,11 +53,9 @@ namespace BookWarms.Controllers
         public async Task<IActionResult> DeleteBook(int id)
         {
             var deleted = await _bookService.DeleteBookAsync(id);
-            if (deleted)
-            {
-                return Ok();
-            }
-            else return NotFound();
+            if (!deleted) return NotFound();
+
+            return Ok();
         }
 
     }

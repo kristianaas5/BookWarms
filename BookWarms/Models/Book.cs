@@ -8,5 +8,6 @@
         public string Genre { get; set; }
         public string Description { get; set; }
         public int PageCount { get; set; }
+        public bool IsDeleted { get; set; } = false;
     }
 }

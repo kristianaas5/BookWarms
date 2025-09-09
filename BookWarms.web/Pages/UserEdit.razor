@@ -1,0 +1,109 @@
+@page "/users/edit/{Id:int?}"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using BookWarms.web.Services
+@inject UsersApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>@(Model.Id == 0 ? "Add User" : $"Edit User #{Model.Id}")</PageTitle>
+<h3>@(Model.Id == 0 ? "Add User" : $"Edit User #{Model.Id}")</h3>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<EditForm Model="@Model" OnValidSubmit="@SaveAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Username</label>
+        <InputText class="form-control" @bind-Value="Model.Username" />
+        <ValidationMessage For="()=>Model.Username" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText class="form-control" @bind-Value="Model.Email" />
+        <ValidationMessage For="()=>Model.Email" />
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" disabled="@saving">
+            <span class="bi bi-save me-1"></span>Save
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="@(()=> Nav.NavigateTo("/users"))">Cancel</button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private string? error;
+    private bool saving;
+    private UserFormModel Model { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is int uid && uid > 0)
+        {
+            try
+            {
+                var dto = await Api.GetUserAsync(uid);
+                if (dto is null) { error = "User not found."; return; }
+
+                Model = new UserFormModel
+                {
+                    Id = dto.Id,
+                    Username = dto.Username,
+                    Email = dto.Email
+                };
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+            }
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        error = null;
+        saving = true;
+        try
+        {
+            var dto = new UserDto(
+                Model.Id,
+                (Model.Username ?? string.Empty).Trim(),
+                (Model.Email ?? string.Empty).Trim(),
+                false
+            );
+
+            bool ok = Model.Id == 0
+                ? (await Api.AddUserAsync(dto)) is not null
+                : await Api.UpdateUserAsync(dto);
+
+            if (ok) Nav.NavigateTo("/users");
+            else error = "Save failed.";
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public sealed class UserFormModel
+    {
+        public int Id { get; set; }
+
+        [Required, StringLength(200)]
+        public string Username { get; set; } = string.Empty;
+
+        [Required, EmailAddress, StringLength(200)]
+        public string Email { get; set; } = string.Empty;
+    }
+}

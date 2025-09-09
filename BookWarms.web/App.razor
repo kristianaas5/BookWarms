@@ -1,0 +1,23 @@
+﻿<ErrorBoundary>
+    <ChildContent>
+        <Router AppAssembly="@typeof(App).Assembly">
+            <Found Context="routeData">
+                <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <PageTitle>Not found</PageTitle>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <p role="alert">Sorry, there's nothing at this address.</p>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </ChildContent>
+    <ErrorContent Context="ex">
+        <div class="alert alert-danger m-3">
+            <div class="fw-bold">Unhandled error</div>
+            <div>@ex.Message</div>
+            <pre class="small mt-2">@ex.StackTrace</pre>
+        </div>
+    </ErrorContent>
+</ErrorBoundary>

@@ -1,0 +1,103 @@
+@page "/users"
+@using BookWarms.web.Services
+@inject UsersApiClient Api
+@inject NavigationManager Nav
+
+<h1>Users</h1>
+
+<div class="d-flex align-items-center gap-2 my-3">
+    <input class="form-control" style="max-width: 420px;" placeholder="Filter users..."
+           @bind="filter" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="@(()=> Nav.NavigateTo("/users/edit"))">
+        <span class="bi bi-plus-circle me-1"></span>Add
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (users is null)
+{
+    <p>Loading...</p>
+}
+else if (Displayed.Count == 0)
+{
+    <p>No users found.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th style="width:140px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var u in Displayed)
+                {
+                    <tr>
+                        <td>
+                            <a class="text-decoration-none" href="@($"/users/{u.Id}/details")">@u.Username</a>
+                        </td>
+                        <td>@u.Email</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary me-1" title="Edit"
+                                    @onclick="@(()=> Nav.NavigateTo($"/users/edit/{u.Id}"))">
+                                <span class="bi bi-pencil-square"></span>
+                                <span class="visually-hidden">Edit</span>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" title="Delete"
+                                    @onclick="@(()=>ConfirmDelete(u.Id))">
+                                <span class="bi bi-trash"></span>
+                                <span class="visually-hidden">Delete</span>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<UserDto>? users;
+    private string? error;
+    private string filter = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            users = (await Api.GetUsersAsync()).Where(u => !u.IsDeleted).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load users: {ex.Message}";
+        }
+    }
+
+    private List<UserDto> Displayed =>
+        string.IsNullOrWhiteSpace(filter)
+            ? users?.OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase).ToList() ?? new()
+            : users?.Where(u =>
+                (!string.IsNullOrEmpty(u.Username) && u.Username.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(u.Email) && u.Email.Contains(filter, StringComparison.OrdinalIgnoreCase))
+              ).OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase).ToList() ?? new();
+
+    [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
+    private async Task ConfirmDelete(int id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user #{id}?")) return;
+        var ok = await Api.DeleteUserAsync(id);
+        if (ok && users is not null)
+        {
+            var found = users.FirstOrDefault(x => x.Id == id);
+            if (found is not null) users.Remove(found);
+            StateHasChanged();
+        }
+    }
+}

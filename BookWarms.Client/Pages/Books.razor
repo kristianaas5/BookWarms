@@ -1,0 +1,74 @@
+@page "/books"
+@inject HttpClient Http
+
+<h3>Books</h3>
+<div class="search-bar my-3">
+<input class="form-control" placeholder="Search books..."
+       value="@searchTerm" @oninput="DebouncedSearch" />
+
+@if (books.Count == 0)
+{
+    <p>No books found.</p>
+}
+else
+{
+    <ul class="list-group mt-2">
+        @foreach (var b in books)
+        {
+            <li class="list-group-item">
+                <strong>@b.Title</strong> by @b.Author
+                <div class="text-muted">@b.Genre</div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private string searchTerm = string.Empty;
+    private List<BookDto> books = new();
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var url = string.IsNullOrWhiteSpace(searchTerm)
+            ? "api/books"
+            : $"api/books/search?q={Uri.EscapeDataString(searchTerm)}";
+
+        books = await Http.GetFromJsonAsync<List<BookDto>>(url) ?? new();
+        StateHasChanged();
+    }
+
+    private async Task DebouncedSearch(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            await Task.Delay(300, token); // debounce
+            if (!token.IsCancellationRequested)
+            {
+                await LoadAsync();
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private sealed class BookDto
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Author { get; set; } = "";
+        public string Genre { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int PageCount { get; set; }
+    }
+}

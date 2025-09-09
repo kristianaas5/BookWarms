@@ -1,0 +1,133 @@
+@page "/books/edit/{id:int?}"
+@using System.ComponentModel.DataAnnotations
+@using BookWarms.web.Services
+@inject BooksApiClient Api
+@inject NavigationManager Nav
+
+<h3>@(Model.Id == 0 ? "Add Book" : $"Edit Book #{Model.Id}")</h3>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<EditForm Model="@Model" OnValidSubmit="@SaveAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3">
+        <label class="form-label">Title</label>
+        <InputText class="form-control" @bind-Value="Model.Title" />
+        <ValidationMessage For="()=>Model.Title" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Author</label>
+        <InputText class="form-control" @bind-Value="Model.Author" />
+        <ValidationMessage For="()=>Model.Author" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Genre</label>
+        <InputText class="form-control" @bind-Value="Model.Genre" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <InputTextArea class="form-control" rows="4" @bind-Value="Model.Description" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Page Count</label>
+        <InputNumber class="form-control" @bind-Value="Model.PageCount" />
+        <ValidationMessage For="()=>Model.PageCount" />
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" disabled="@saving">
+            <span class="bi bi-save me-1"></span>Save
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="@(()=>Nav.NavigateTo("/books"))">Cancel</button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private string? error;
+    private bool saving;
+
+    private BookFormModel Model { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is { } id && id > 0)
+        {
+            var dto = await Api.GetBookAsync(id);
+            if (dto is null) { error = "Book not found."; return; }
+            Model = new BookFormModel
+            {
+                Id = dto.Id,
+                Title = dto.Title,
+                Author = dto.Author,
+                Genre = dto.Genre,
+                Description = dto.Description,
+                PageCount = dto.PageCount
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        error = null;
+        saving = true;
+        try
+        {
+            var dto = new BookDto(
+                Model.Id,
+                Model.Title,
+                Model.Author,
+                Model.Genre ?? string.Empty,
+                Model.Description ?? string.Empty,
+                Model.PageCount,
+                false
+            );
+
+            bool ok;
+            if (Model.Id == 0)
+            {
+                var (result, errorMsg) = await Api.AddBookAsync(dto);
+                ok = result is not null; 
+                if (!ok) error = errorMsg;
+            }
+            else
+            {
+                ok = await Api.UpdateBookAsync(dto);
+            }
+
+            if (ok) Nav.NavigateTo("/books");
+            else error = "Save failed.";
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public sealed class BookFormModel
+    {
+        public int Id { get; set; }
+
+        [Required, StringLength(200)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required, StringLength(200)]
+        public string Author { get; set; } = string.Empty;
+
+        [StringLength(100)]
+        public string? Genre { get; set; }
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Page count must be at least 1.")]
+        public int PageCount { get; set; } = 1;
+    }
+}

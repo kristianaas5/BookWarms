@@ -17,10 +17,9 @@ namespace BookWarms.Services
         public async Task<List<Review>> GetAllReviewsAsync()
         {
             return await _context.Reviews
-                .Include(r => r.Library)
-                    .ThenInclude(l => l.User)
-                .Include(r => r.Library)
-                    .ThenInclude(l => l.Book)
+                .AsNoTracking()
+                .Include(r => r.Library).ThenInclude(l => l.User)
+                .Include(r => r.Library).ThenInclude(l => l.Book)
                 .ToListAsync();
         }
 
@@ -28,10 +27,9 @@ namespace BookWarms.Services
         public async Task<Review> GetReviewByIdAsync(int id)
         {
             return await _context.Reviews
-                .Include(r => r.Library)
-                    .ThenInclude(l => l.User)
-                .Include(r => r.Library)
-                    .ThenInclude(l => l.Book)
+                .AsNoTracking()
+                .Include(r => r.Library).ThenInclude(l => l.User)
+                .Include(r => r.Library).ThenInclude(l => l.Book)
                 .FirstOrDefaultAsync(r => r.Id == id);
         }
 
@@ -44,17 +42,11 @@ namespace BookWarms.Services
                 .FirstOrDefaultAsync(l => l.Id == review.LibraryId);
 
             if (library == null) return null;
+            if (library.ShelfType != ShelfType.Read) return null;
 
-            // позволяваме ревю само ако книгата е прочетена
-            if (library.ShelfType != ShelfType.Read)
-                return null;
-            else
-            {
-                _context.Reviews.Add(review);
-                await _context.SaveChangesAsync();
-                return review;
-            }
-
+            _context.Reviews.Add(review);
+            await _context.SaveChangesAsync();
+            return review;
         }
 
         // Обновяване на ревю
@@ -81,15 +73,19 @@ namespace BookWarms.Services
             return await _context.SaveChangesAsync() > 0;
         }
 
-
-        //// Изтриване на ревю
-        //public async Task<bool> DeleteReviewAsync(int id)
-        //{
-        //    var review = await GetReviewByIdAsync(id);
-        //    if (review == null) return false;
-
-        //    _context.Reviews.Remove(review);
-        //    return await _context.SaveChangesAsync() > 0;
-        //}
+        // Взимане на ревюта за конкретен потребител (включва Library -> Book, User)
+        public async Task<List<Review>> GetUserReviewsAsync(int userId)
+        {
+            return await _context.Reviews
+                .AsNoTracking()
+                .Include(r => r.Library).ThenInclude(l => l.Book)
+                .Include(r => r.Library).ThenInclude(l => l.User)
+                .Where(r =>
+                    r.Library.UserId == userId &&
+                    !r.IsDeleted &&
+                    r.Library != null && !r.Library.IsDeleted &&
+                    r.Library.Book != null && !r.Library.Book.IsDeleted)
+                .ToListAsync();
+        }
     }
 }

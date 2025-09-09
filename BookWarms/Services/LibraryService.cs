@@ -17,8 +17,14 @@ namespace BookWarms.Services
         public async Task<List<Library>> GetUserLibraryAsync(int userId)
         {
             return await _context.Libraries
+                .IgnoreQueryFilters()
+                .AsNoTracking()
                 .Include(l => l.Book)
-                .Where(l => l.UserId == userId && !l.IsDeleted)
+                .Where(l =>
+                    l.UserId == userId &&
+                    !l.IsDeleted &&
+                    l.Book != null &&
+                    !l.Book.IsDeleted)
                 .ToListAsync();
         }
 

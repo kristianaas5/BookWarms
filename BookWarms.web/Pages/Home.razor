@@ -2,6 +2,129 @@
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<section class="home-hero text-center container">
+    <h1 class="display-1 fw-bold gradient-title mb-3">
+        <span class="bi bi-book-half me-2 hero-icon" aria-hidden="true"></span>
+        BookWarms
+    </h1>
+    <p class="lead mx-auto hero-lead">
+        Track reading, manage shelves, analyze stats, undo accidental deletes and discover your next favorite book.
+    </p>
 
-Welcome to your new app.
+    <div class="d-flex justify-content-center gap-3 flex-wrap mt-4">
+        <NavLink class="btn btn-primary btn-lg px-4 shadow-sm hero-btn" href="/books">
+            <span class="bi bi-search me-2" aria-hidden="true"></span> Browse Books
+        </NavLink>
+        <NavLink class="btn btn-outline-primary btn-lg px-4 shadow-sm hero-btn" href="/users">
+            <span class="bi bi-people me-2" aria-hidden="true"></span> Users
+        </NavLink>
+        <NavLink class="btn btn-outline-primary btn-lg px-4 shadow-sm hero-btn" href="/books/edit">
+            <span class="bi bi-plus-circle me-2" aria-hidden="true"></span> Add Book
+        </NavLink>
+    </div>
+</section>
+
+<section class="container quick-actions mt-4">
+    <div class="action-bar shadow-sm">
+        <button @onclick='() => Nav.NavigateTo("/books")' class="btn btn-icon btn-light" title="Books">
+            <span class="bi bi-journal-text" aria-hidden="true"></span>
+            <span class="visually-hidden">Books</span>
+        </button>
+        <button @onclick='() => Nav.NavigateTo("/users")' class="btn btn-icon btn-light" title="Users">
+            <span class="bi bi-people" aria-hidden="true"></span>
+            <span class="visually-hidden">Users</span>
+        </button>
+        <button @onclick='() => Nav.NavigateTo("/books/edit")' class="btn btn-icon btn-light" title="Add Book">
+            <span class="bi bi-plus-lg" aria-hidden="true"></span>
+            <span class="visually-hidden">Add Book</span>
+        </button>
+        <button @onclick='() => Nav.NavigateTo("/users/edit")' class="btn btn-icon btn-light" title="Add User">
+            <span class="bi bi-person-plus" aria-hidden="true"></span>
+            <span class="visually-hidden">Add User</span>
+        </button>
+        <button @onclick='() => Nav.NavigateTo("/home")' class="btn btn-icon btn-light" title="Refresh">
+            <span class="bi bi-arrow-clockwise" aria-hidden="true"></span>
+            <span class="visually-hidden">Refresh</span>
+        </button>
+    </div>
+</section>
+
+<section class="container feature-cards mt-5">
+    <div class="row g-4">
+        <div class="col-12 col-md-4">
+            <div class="card h-100 feature-card shadow-sm">
+                <div class="card-body d-flex flex-column">
+                    <div class="feature-icon text-primary mb-2">
+                        <span class="bi bi-layer-backward" aria-hidden="true"></span>
+                    </div>
+                    <h5 class="card-title">Shelf Management</h5>
+                    <p class="card-text flex-grow-1">
+                        Instantly move books between shelves & save or undo changes safely.
+                    </p>
+                    <NavLink class="stretched-link" href="/users">View shelves</NavLink>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100 feature-card shadow-sm">
+                <div class="card-body d-flex flex-column">
+                    <div class="feature-icon text-primary mb-2">
+                        <span class="bi bi-graph-up" aria-hidden="true"></span>
+                    </div>
+                    <h5 class="card-title">Reading Insights</h5>
+                    <p class="card-text flex-grow-1">
+                        Year & genre analytics visualize progress and habits.
+                    </p>
+                    <NavLink class="stretched-link" href="/users">See stats</NavLink>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100 feature-card shadow-sm">
+                <div class="card-body d-flex flex-column">
+                    <div class="feature-icon text-primary mb-2">
+                        <span class="bi bi-magic" aria-hidden="true"></span>
+                    </div>
+                    <h5 class="card-title">Smart Picks</h5>
+                    <p class="card-text flex-grow-1">
+                        Multi‑genre fallback recommendations keep fresh titles coming.
+                    </p>
+                    <NavLink class="stretched-link" href="/users">Explore</NavLink>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="container mt-5 mb-5 quick-stats">
+    <div class="row g-3">
+        <div class="col-6 col-md-3">
+            <div class="stat-tile">
+                <span class="label">Undo Window</span>
+                <span class="value">8s</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-tile">
+                <span class="label">Shelves</span>
+                <span class="value">3</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-tile">
+                <span class="label">Analytics</span>
+                <span class="value">Genres & Year</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-tile">
+                <span class="label">Recs</span>
+                <span class="value">Adaptive</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+}

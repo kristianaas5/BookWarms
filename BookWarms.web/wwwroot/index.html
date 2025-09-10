@@ -1,25 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BookWarms.web</title>
+    <title>BookWarms</title>
     <base href="/" />
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-    <link rel="stylesheet" href="css/app.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Favicon -->
     <link rel="icon" type="image/png" href="favicon.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap core + icons (RESTORED icons stylesheet) -->
+    <link href="css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+    <!-- App styles -->
+    <link href="css/app.css" rel="stylesheet" />
     <link href="BookWarms.web.styles.css" rel="stylesheet" />
 </head>
-
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="startup-screen" role="status" aria-live="polite">
+            <div class="startup-box shadow-sm">
+                <div class="logo-circle">
+                    <span class="bi bi-book-half" aria-hidden="true"></span>
+                </div>
+                <h1 class="startup-title">BookWarms</h1>
+                <p class="startup-sub">Loading your library...</p>
+                <div class="progress slim">
+                    <div class="progress-bar" id="bw-load-bar" style="width:0%"></div>
+                </div>
+                <div class="small text-muted mt-2" id="bw-load-text">0%</div>
+                <noscript class="text-danger small mt-3 d-block">
+                    JavaScript is required to run this application.
+                </noscript>
+            </div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
@@ -27,7 +47,43 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="_framework/blazor.webassembly.js"></script>
-</body>
 
+    <script>
+        const bar = document.getElementById('bw-load-bar');
+        const text = document.getElementById('bw-load-text');
+        let simulated = 0;
+        const simInterval = setInterval(() => {
+            if (document.readyState === 'complete') return;
+            simulated = Math.min(simulated + (Math.random() * 8), 85);
+            if (bar) bar.style.width = simulated.toFixed(0) + '%';
+            if (text) text.textContent = simulated.toFixed(0) + '%';
+        }, 180);
+        window.__bwUpdateProgress = pct => {
+            clearInterval(simInterval);
+            if (bar) bar.style.width = pct + '%';
+            if (text) text.textContent = pct + '%';
+        };
+    </script>
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script>
+        (async function () {
+            const originalFetch = window.fetch;
+            let loaded = 0, totalGuessed = 12;
+            window.fetch = async (...args) => {
+                const r = await originalFetch(...args);
+                loaded++;
+                const pct = Math.min(100, Math.round((loaded / totalGuessed) * 100));
+                if (window.__bwUpdateProgress) window.__bwUpdateProgress(pct);
+                return r;
+            };
+            await Blazor.start();
+            if (window.__bwUpdateProgress) window.__bwUpdateProgress(100);
+            const scr = document.querySelector('.startup-screen');
+            if (scr) {
+                scr.classList.add('fade-out');
+                setTimeout(() => scr.remove(), 600);
+            }
+        })();
+    </script>
+</body>
 </html>

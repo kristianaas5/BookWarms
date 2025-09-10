@@ -1,16 +1,16 @@
 .search-bar {
     position: relative;
-    max-width: 860px; /* was 640px */
+    max-width: 860px;
     width: 100%;
 }
 .search-input {
-    padding-left: 2.75rem; /* a bit more space for icon */
+    padding-left: 2.75rem;
     padding-right: 2.75rem;
     border-radius: 9999px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     transition: box-shadow .2s ease, border-color .2s ease;
-    height: 3.25rem;          /* taller */
-    font-size: 1.1rem;        /* bigger text */
+    height: 3.25rem;
+    font-size: 1.1rem;
 }
 .search-input:focus {
     box-shadow: 0 0 0 .2rem rgba(13,110,253,.15), 0 4px 18px rgba(0,0,0,0.10);
@@ -24,7 +24,7 @@
     transform: translateY(-50%);
     color: #6c757d;
     pointer-events: none;
-    font-size: 1.25rem;      /* bigger icon */
+    font-size: 1.25rem;
 }
 .clear-btn {
     position: absolute;
@@ -47,9 +47,4 @@
 @media (prefers-color-scheme: dark) {
     .search-input { box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
     .clear-btn:hover { background-color: rgba(255,255,255,0.07); }
-}
-
-/* Card grid styles */
-.book-card .card-body {
-    padding: 1rem 1rem;
 }

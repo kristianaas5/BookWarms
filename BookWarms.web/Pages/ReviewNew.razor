@@ -1,0 +1,99 @@
+@page "/reviews/new/{userId:int}/{libraryId:int}"
+@using BookWarms.web.Services
+@inject UsersApiClient UsersApi
+@inject ReviewsApiClient ReviewsApi
+@inject NavigationManager Nav
+
+<h3>Write Review</h3>
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (loading)
+{
+    <p>Loading...</p>
+}
+else if (item is null)
+{
+    <p>Library item not found or not eligible.</p>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="mb-2"><strong>@item.Book!.Title</strong> by @item.Book!.Author</div>
+            <EditForm Model="@this" OnValidSubmit="@SaveAsync">
+                <DataAnnotationsValidator />
+                <div class="mb-3">
+                    <label class="form-label">Rating</label>
+                    <select class="form-select w-auto" @bind="rating">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            <option value="@i">@i</option>
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Review</label>
+                    <textarea class="form-control" rows="5" @bind="reviewText"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" type="submit" disabled="@saving">
+                        <span class="bi bi-save me-1"></span>Save
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="@(()=> Nav.NavigateTo($"/users/{userId}/details"))">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int userId { get; set; }
+    [Parameter] public int libraryId { get; set; }
+
+    private string? error;
+    private bool loading = true;
+    private bool saving = false;
+    private LibraryDto? item;
+    private int rating = 5;
+    private string reviewText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var lib = await UsersApi.GetUserLibraryAsync(userId);
+            item = lib.FirstOrDefault(l => l.Id == libraryId && l.Book is not null);
+            if (item is null)
+            {
+                error = "Library item not found.";
+                return;
+            }
+            if (item.ShelfType != ShelfType.Read)
+            {
+                error = "You can only review books marked as Read.";
+                item = null;
+                return;
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        error = null;
+        if (rating < 1 || rating > 5) { error = "Rating must be 1..5."; return; }
+        saving = true;
+        try
+        {
+            var ok = await ReviewsApi.AddReviewAsync(libraryId, rating, reviewText);
+            if (ok) Nav.NavigateTo($"/users/{userId}/details");
+            else error = "Failed to save review.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+}

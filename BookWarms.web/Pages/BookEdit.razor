@@ -4,6 +4,7 @@
 @inject BooksApiClient Api
 @inject NavigationManager Nav
 
+<PageTitle>@(Model.Id == 0 ? "Add Book" : $"Edit Book #{Model.Id}")</PageTitle>
 <h3>@(Model.Id == 0 ? "Add Book" : $"Edit Book #{Model.Id}")</h3>
 
 @if (!string.IsNullOrWhiteSpace(error))
@@ -14,34 +15,56 @@
 <EditForm Model="@Model" OnValidSubmit="@SaveAsync">
     <DataAnnotationsValidator />
     <ValidationSummary />
-    <div class="mb-3">
-        <label class="form-label">Title</label>
-        <InputText class="form-control" @bind-Value="Model.Title" />
-        <ValidationMessage For="()=>Model.Title" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Author</label>
-        <InputText class="form-control" @bind-Value="Model.Author" />
-        <ValidationMessage For="()=>Model.Author" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Genre</label>
-        <InputText class="form-control" @bind-Value="Model.Genre" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Description</label>
-        <InputTextArea class="form-control" rows="4" @bind-Value="Model.Description" />
-    </div>
-    <div class="mb-3">
-        <label class="form-label">Page Count</label>
-        <InputNumber class="form-control" @bind-Value="Model.PageCount" />
-        <ValidationMessage For="()=>Model.PageCount" />
-    </div>
-    <div class="d-flex gap-2">
-        <button class="btn btn-primary" disabled="@saving">
-            <span class="bi bi-save me-1"></span>Save
-        </button>
-        <button type="button" class="btn btn-secondary" @onclick="@(()=>Nav.NavigateTo("/books"))">Cancel</button>
+
+    <div class="edit-book-form">
+        <div class="row align-items-start row-field">
+            <label for="title" class="col-sm-3 col-form-label">Title</label>
+            <div class="col-sm-9">
+                <InputText id="title" class="form-control" @bind-Value="Model.Title" />
+                <ValidationMessage For="()=>Model.Title" />
+            </div>
+        </div>
+
+        <div class="row align-items-start row-field">
+            <label for="author" class="col-sm-3 col-form-label">Author</label>
+            <div class="col-sm-9">
+                <InputText id="author" class="form-control" @bind-Value="Model.Author" />
+                <ValidationMessage For="()=>Model.Author" />
+            </div>
+        </div>
+
+        <div class="row align-items-start row-field">
+            <label for="genre" class="col-sm-3 col-form-label">Genre</label>
+            <div class="col-sm-9">
+                <InputText id="genre" class="form-control" @bind-Value="Model.Genre" />
+            </div>
+        </div>
+
+        <div class="row align-items-start row-field">
+            <label for="description" class="col-sm-3 col-form-label">Description</label>
+            <div class="col-sm-9">
+                <InputTextArea id="description" class="form-control" rows="5" @bind-Value="Model.Description" />
+            </div>
+        </div>
+
+        <div class="row align-items-start row-field">
+            <label for="pages" class="col-sm-3 col-form-label">Page Count</label>
+            <div class="col-sm-9">
+                <InputNumber id="pages" class="form-control" @bind-Value="Model.PageCount" />
+                <ValidationMessage For="()=>Model.PageCount" />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-sm-9 offset-sm-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@saving">
+                    <span class="bi bi-save me-1"></span>Save
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="@(()=>Nav.NavigateTo("/books"))">
+                    Cancel
+                </button>
+            </div>
+        </div>
     </div>
 </EditForm>
 
@@ -90,7 +113,7 @@
             if (Model.Id == 0)
             {
                 var (result, errorMsg) = await Api.AddBookAsync(dto);
-                ok = result is not null; 
+                ok = result is not null;
                 if (!ok) error = errorMsg;
             }
             else

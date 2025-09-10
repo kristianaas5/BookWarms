@@ -13,18 +13,13 @@ namespace BookWarms.web
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
 
-            // API base address: match your API HTTPS port
             var apiBase = new Uri("https://localhost:7222/");
 
             builder.Services.AddHttpClient<BooksApiClient>(c => c.BaseAddress = apiBase);
-            // NEW
-            //builder.Services.AddHttpClient<UsersApiClient>(c => c.BaseAddress = apiBase);
-            builder.Services.AddHttpClient<UsersApiClient>(c => c.BaseAddress = new Uri("https://localhost:7222/"));
+            builder.Services.AddHttpClient<UsersApiClient>(c => c.BaseAddress = apiBase);
+            builder.Services.AddHttpClient<ReviewsApiClient>(c => c.BaseAddress = new Uri("https://localhost:7222/"));
 
-            builder.Services.AddScoped(sp => new HttpClient
-            {
-                BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
-            });
+            builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
             await builder.Build().RunAsync();
         }

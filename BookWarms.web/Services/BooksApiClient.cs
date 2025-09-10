@@ -6,15 +6,12 @@ namespace BookWarms.web.Services;
 public class BooksApiClient
 {
     private readonly HttpClient _http;
-
     public BooksApiClient(HttpClient http) => _http = http;
 
     public async Task<IReadOnlyList<BookDto>> GetBooksAsync(CancellationToken ct = default)
-        => await _http.GetFromJsonAsync<IReadOnlyList<BookDto>>("api/books", ct)
-           ?? Array.Empty<BookDto>();
+        => await _http.GetFromJsonAsync<IReadOnlyList<BookDto>>("api/books", ct) ?? Array.Empty<BookDto>();
 
-    public async Task<PagedResult<BookDto>> SearchBooksAsync(
-        string? q, string? sortBy, bool desc, int page, int pageSize, CancellationToken ct = default)
+    public async Task<PagedResult<BookDto>> SearchBooksAsync(string? q, string? sortBy, bool desc, int page, int pageSize, CancellationToken ct = default)
         => await _http.GetFromJsonAsync<PagedResult<BookDto>>(
                $"api/books/search?q={Uri.EscapeDataString(q ?? "")}&sortBy={Uri.EscapeDataString(sortBy ?? "Title")}&desc={desc}&page={page}&pageSize={pageSize}", ct)
            ?? new PagedResult<BookDto>(Array.Empty<BookDto>(), 0, page, pageSize);
@@ -32,16 +29,13 @@ public class BooksApiClient
     }
 
     public async Task<bool> UpdateBookAsync(BookDto dto, CancellationToken ct = default)
-    {
-        var resp = await _http.PutAsJsonAsync($"api/books/{dto.Id}", dto, ct);
-        return resp.IsSuccessStatusCode;
-    }
+        => (await _http.PutAsJsonAsync($"api/books/{dto.Id}", dto, ct)).IsSuccessStatusCode;
 
     public async Task<bool> DeleteBookAsync(int id, CancellationToken ct = default)
-    {
-        var resp = await _http.DeleteAsync($"api/books/{id}", ct);
-        return resp.IsSuccessStatusCode;
-    }
+        => (await _http.DeleteAsync($"api/books/{id}", ct)).IsSuccessStatusCode;
+
+    public async Task<bool> RestoreBookAsync(int id, CancellationToken ct = default)
+        => (await _http.PostAsync($"api/books/{id}/restore", null, ct)).IsSuccessStatusCode;
 }
 
 public record BookDto(
@@ -54,10 +48,5 @@ public record BookDto(
     bool IsDeleted
 );
 
-public record PagedResult<T>(
-    IReadOnlyList<T> Items,
-    int TotalCount,
-    int Page,
-    int PageSize
-);
+public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
 

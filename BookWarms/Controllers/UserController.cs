@@ -19,19 +19,14 @@ namespace BookWarms.Controllers
             _reviewService = reviewService;
         }
 
-        // Create
         [HttpPost]
         public async Task<IActionResult> AddUser(User user)
-        {
-            var addedUser = await _userService.AddUserAsync(user);
-            return Ok(addedUser);
-        }
+            => Ok(await _userService.AddUserAsync(user));
 
-        // Read all
         [HttpGet]
-        public async Task<IActionResult> GetUsers() => Ok(await _userService.GetAllUsersAsync());
+        public async Task<IActionResult> GetUsers()
+            => Ok(await _userService.GetAllUsersAsync());
 
-        // Read by id
         [HttpGet("{id:int}")]
         public async Task<IActionResult> GetUser(int id)
         {
@@ -39,7 +34,6 @@ namespace BookWarms.Controllers
             return user is null ? NotFound() : Ok(user);
         }
 
-        // ----- Library endpoints -----
         [HttpGet("{id:int}/library")]
         public async Task<IActionResult> GetUserLibrary(int id)
             => Ok(await _libraryService.GetUserLibraryAsync(id));
@@ -49,8 +43,7 @@ namespace BookWarms.Controllers
         public async Task<IActionResult> AddToLibrary(int id, [FromBody] AddLibraryItemRequest req)
         {
             var added = await _libraryService.AddBookAsync(id, req.BookId, req.ShelfType);
-            if (added is null) return Conflict("Book already in library or invalid.");
-            return Ok(added);
+            return added is null ? Conflict("Book already in library or invalid.") : Ok(added);
         }
 
         public record UpdateShelfRequest(ShelfType ShelfType);
@@ -58,43 +51,40 @@ namespace BookWarms.Controllers
         public async Task<IActionResult> UpdateShelf(int id, int libraryId, [FromBody] UpdateShelfRequest req)
         {
             var updated = await _libraryService.UpdateShelfAsync(libraryId, req.ShelfType);
-            if (updated is null) return NotFound();
-            return Ok(updated);
+            return updated is null ? NotFound() : Ok(updated);
         }
 
         [HttpDelete("{id:int}/library/{libraryId:int}")]
         public async Task<IActionResult> DeleteLibraryItem(int id, int libraryId)
-        {
-            var ok = await _libraryService.DeleteAsync(libraryId);
-            return ok ? NoContent() : NotFound();
-        }
-        // -----------------------------
+            => (await _libraryService.DeleteAsync(libraryId)) ? NoContent() : NotFound();
 
-        // Update
         [HttpPut("{id:int}")]
         public async Task<IActionResult> UpdateUser(int id, User user)
         {
             if (id != user.Id) return BadRequest("User ID mismatch.");
-
-            var existingUser = await _userService.GetUserByIdAsync(id);
-            if (existingUser == null) return NotFound();
-
-            var updated = await _userService.UpdateUserAsync(user);
-            return updated ? Ok(user) : StatusCode(500);
+            var existing = await _userService.GetUserByIdAsync(id);
+            if (existing == null) return NotFound();
+            return (await _userService.UpdateUserAsync(user)) ? Ok(user) : StatusCode(500);
         }
 
-        // Delete (soft)
         [HttpDelete("{id:int}")]
         public async Task<IActionResult> DeleteUser(int id)
-        {
-            var deleted = await _userService.DeleteUserAsync(id);
-            if (!deleted) return NotFound();
-            return NoContent();
-        }
+            => (await _userService.DeleteUserAsync(id)) ? NoContent() : NotFound();
 
-        // Reviews
+        [HttpPost("{id:int}/restore")]
+        public async Task<IActionResult> RestoreUser(int id)
+            => (await _userService.RestoreUserAsync(id)) ? Ok() : NotFound();
+
         [HttpGet("{id:int}/reviews")]
         public async Task<IActionResult> GetUserReviews(int id)
             => Ok(await _reviewService.GetUserReviewsAsync(id));
+
+        [HttpGet("{id:int}/stats")]
+        public async Task<IActionResult> GetUserStats(int id)
+        {
+            var user = await _userService.GetUserByIdAsync(id);
+            if (user is null) return NotFound();
+            return Ok(await _reviewService.GetUserReadingStatsAsync(id));
+        }
     }
 }

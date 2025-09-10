@@ -1,0 +1,12 @@
+.book-details-content {
+    line-height: 1.7; /* slightly bigger line spacing overall */
+}
+
+.reviews-list .list-group-item {
+    margin-bottom: 1rem;   /* space between different reviews */
+    line-height: 1.6;
+}
+
+.reviews-list .list-group-item:last-child {
+    margin-bottom: 0;
+}

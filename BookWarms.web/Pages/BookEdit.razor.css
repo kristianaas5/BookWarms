@@ -1,0 +1,29 @@
+.edit-book-form {
+    max-width: 900px;   /* center and constrain width */
+    margin: 0 auto;
+}
+
+/* Bigger vertical spacing between fields */
+.row-field {
+    margin-bottom: 1.25rem;
+}
+@media (min-width: 992px) {
+    .row-field {
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* Consistent label alignment and spacing */
+.col-form-label {
+    padding-top: .45rem;
+    font-weight: 600;
+    text-align: left;     /* ensure labels are left-aligned */
+    margin-bottom: 0;     /* keep labels vertically centered with inputs */
+}
+
+/* Validation message spacing/size */
+:deep(.validation-message) {
+    display: block;
+    margin-top: .35rem;
+    font-size: .95rem;
+}

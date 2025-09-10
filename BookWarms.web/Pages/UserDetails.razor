@@ -2,9 +2,11 @@
 @using BookWarms.web.Services
 @inject UsersApiClient UsersApi
 @inject BooksApiClient BooksApi
+@inject ReviewsApiClient ReviewsApi
 @inject NavigationManager Nav
+@inject Microsoft.JSInterop.IJSRuntime JS
 
-<h1>User</h1>
+<h1 class="mb-3">User Details</h1>
 
 @if (!string.IsNullOrWhiteSpace(error))
 {
@@ -20,82 +22,282 @@ else if (user is null)
 }
 else
 {
-    <div class="mb-3">
-        <h4 class="mb-1">@user.Username</h4>
-        <div class="text-muted">@user.Email</div>
-    </div>
+    <div class="user-details-sections">
 
-    <!-- Add to library UI remains -->
+        <!-- Header with actions -->
+        <div class="section-block">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div>
+                    <h4 class="mb-1">@user.Username</h4>
+                    <div class="text-muted">@user.Email</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-icon" title="Edit user"
+                            @onclick="@(() => Nav.NavigateTo($"/users/edit/{user.Id}"))">
+                        <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                        <span class="visually-hidden">Edit</span>
+                    </button>
+                    <button class="btn btn-outline-danger btn-icon" title="Delete user"
+                            disabled="@deletingUser" @onclick="DeleteUser">
+                        <span class="bi bi-trash" aria-hidden="true"></span>
+                        <span class="visually-hidden">Delete</span>
+                    </button>
+                </div>
+            </div>
+        </div>
 
-    <h5>Library</h5>
-    @if (library.Count == 0)
-    {
-        <p class="text-muted">No library items.</p>
-    }
-    else
-    {
-        <ul class="list-group">
-            @foreach (var item in library.Where(i => i.Book is not null))
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>@item.Book!.Title</strong> by @item.Book!.Author
-                        <div class="text-muted small">@item.ShelfType</div>
+        <!-- Add to library -->
+        <div class="section-block">
+            <div class="card add-library-block">
+                <div class="card-body">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-9">
+                            <label class="form-label">Add book to library</label>
+                            <select class="form-select" @bind="selectedBookId">
+                                <option value="0">Select a book...</option>
+                                @foreach (var b in books)
+                                {
+                                    <option value="@b.Id">@b.Title (@b.Author)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <button class="btn btn-primary w-100 btn-icon"
+                                    @onclick="AddToLibrary"
+                                    disabled="@adding"
+                                    title="Add to library">
+                                <span class="bi bi-plus-circle" aria-hidden="true"></span>
+                                <span class="visually-hidden">Add</span>
+                            </button>
+                        </div>
                     </div>
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-sm w-auto" value="@item.ShelfType"
-                                @onchange="e => ChangeShelf(item, Enum.Parse<ShelfType>(e.Value?.ToString() ?? nameof(ShelfType.WantToRead)))">
-                            @foreach (var s in Enum.GetValues<ShelfType>())
+                    @if (!string.IsNullOrWhiteSpace(actionError))
+                    {
+                        <div class="text-danger mt-2">@actionError</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Library -->
+        <div class="section-block">
+            <h5 class="section-heading">Library</h5>
+            @foreach (var shelf in shelfOrder)
+            {
+                var itemsInShelf = library.Where(i => i.Book is not null && i.ShelfType == shelf).ToList();
+                <div class="library-shelf-block">
+                    <div class="d-flex align-items-center justify-content-between shelf-header">
+                        <h6 class="mb-0">@ShelfTitle(shelf)</h6>
+                        <span class="text-muted small">@itemsInShelf.Count item(s)</span>
+                    </div>
+
+                    @if (itemsInShelf.Count == 0)
+                    {
+                        <div class="text-muted">No books.</div>
+                    }
+                    else if (shelf == ShelfType.Read)
+                    {
+                        var reviewed = itemsInShelf.Where(i => reviewedLibraryIds.Contains(i.Id)).ToList();
+                        var unreviewed = itemsInShelf.Where(i => !reviewedLibraryIds.Contains(i.Id)).ToList();
+
+                        <div class="sub-shelf-block">
+                            <div class="d-flex justify-content-between align-items-center sub-shelf-header">
+                                <strong>Reviewed (@reviewed.Count)</strong>
+                                @if (reviewed.Count == 0)
+                                {
+                                    <span class="text-muted small">None</span>
+                                }
+                            </div>
+                            @if (reviewed.Count > 0)
                             {
-                                <option value="@s" selected="@(s==item.ShelfType)">@s</option>
+                                <div class="shelf-grid">
+                                    @foreach (var item in reviewed)
+                                    {
+                                        @LibraryCard(item)
+                                    }
+                                </div>
                             }
-                        </select>
-                        <button class="btn btn-sm btn-outline-danger" title="Remove"
-                                @onclick="@(()=>Remove(item))">
-                            <span class="bi bi-x-circle"></span>
-                        </button>
+                        </div>
+
+                        <div class="sub-shelf-block">
+                            <div class="d-flex justify-content-between align-items-center sub-shelf-header">
+                                <strong>Unreviewed (@unreviewed.Count)</strong>
+                                @if (unreviewed.Count == 0)
+                                {
+                                    <span class="text-muted small">None</span>
+                                }
+                            </div>
+                            @if (unreviewed.Count > 0)
+                            {
+                                <div class="shelf-grid">
+                                    @foreach (var item in unreviewed)
+                                    {
+                                        @LibraryCard(item)
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="shelf-grid">
+                            @foreach (var item in itemsInShelf)
+                            {
+                                @LibraryCard(item)
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Reading statistics -->
+        @if (readGenreSlices.Count > 0)
+        {
+            <div class="section-block">
+                <div class="card genre-stats-card">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3 d-flex align-items-center gap-2">
+                            <span class="bi bi-pie-chart"></span> Reading Statistics
+                        </h5>
+                        <div class="d-flex flex-wrap align-items-start gap-4">
+                            <div class="genre-pie" style="background: conic-gradient(@pieGradient);">
+                                <div class="genre-pie-center">
+                                    <div class="fw-bold">@totalPagesRead</div>
+                                    <div class="small text-muted">pages</div>
+                                </div>
+                            </div>
+                            <div>
+                                <h6 class="mb-2">Read Genres</h6>
+                                <ul class="list-unstyled mb-0 genre-legend">
+                                    @foreach (var s in readGenreSlices)
+                                    {
+                                        <li class="d-flex align-items-center mb-1">
+                                            <span class="legend-color" style="background:@s.Color"></span>
+                                            <span class="flex-grow-1">@s.Label</span>
+                                            <span class="text-muted small">@s.Count (@s.Percent.ToString("0.#")%)</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </li>
-            }
-        </ul>
-    }
+                </div>
+            </div>
+        }
 
-    <h5 class="mt-4">Reviews</h5>
-    @if (reviews.Count == 0)
-    {
-        <p class="text-muted">No reviews.</p>
-    }
-    else
-    {
-        <ul class="list-group">
-            @foreach (var r in reviews.Where(r => r.Library?.Book is not null))
+        <!-- Top genre recommendations (multi-genre fallback) -->
+        @if (topGenreRecommendations.Count > 0)
+        {
+            <div class="section-block">
+                <h5 class="section-heading">Find your next read below:</h5>
+                <div class="shelf-grid">
+                    @foreach (var rb in topGenreRecommendations)
+                    {
+                        <div class="shelf-item">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body d-flex flex-column">
+                                    <div class="mb-1"><strong>@rb.Title</strong></div>
+                                    <div class="text-muted small mb-2">@rb.Author • @rb.PageCount pages</div>
+                                    <div class="mt-auto d-flex gap-2">
+                                        <button class="btn btn-sm btn-outline-info btn-icon" title="Details" @onclick="@(() => Nav.NavigateTo($"/books/{rb.Id}"))">
+                                            <span class="bi bi-book" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Details</span>
+                                        </button>
+                                        <button class="btn btn-sm btn-primary btn-icon"
+                                                @onclick="@(() => AddRecToLibrary(rb))"
+                                                disabled="@adding"
+                                                title="Add to library">
+                                            <span class="bi bi-plus-circle" aria-hidden="true"></span>
+                                            <span class="visually-hidden">Add</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Reviews -->
+        <div class="section-block">
+            <h5 class="section-heading">Reviews</h5>
+            @if (reviews.Count == 0)
             {
-                <li class="list-group-item">
-                    <div><strong>@r.Library!.Book!.Title</strong> - Rating: @r.Rating/5</div>
-                    <div class="text-muted">@r.Date.ToShortDateString()</div>
-                    <div>@r.ReviewText</div>
-                </li>
+                <p class="text-muted">No reviews.</p>
             }
-        </ul>
-    }
+            else
+            {
+                <ul class="list-group reviews-list">
+                    @foreach (var r in reviews.Where(r => r.Library?.Book is not null))
+                    {
+                        <li class="list-group-item d-flex justify-content-between">
+                            <div class="me-2">
+                                <div><strong>@r.Library!.Book!.Title</strong> - Rating: @r.Rating/5</div>
+                                <div class="text-muted small">@r.Date.ToShortDateString()</div>
+                                <div class="mt-1">@r.ReviewText</div>
+                            </div>
+                            <div class="d-flex align-items-start">
+                                <button class="btn btn-sm btn-outline-danger"
+                                        title="Delete review"
+                                        @onclick="@(() => DeleteReview(r.Id))">
+                                    <span class="bi bi-trash"></span>
+                                </button>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
 
-    <div class="mt-3">
-        <button class="btn btn-secondary" @onclick="@(()=>Nav.NavigateTo("/users"))">Back to Users</button>
+        <!-- Back -->
+        <div class="section-block small-action">
+            <button class="btn btn-secondary btn-icon" @onclick="@(() => Nav.NavigateTo("/users"))" title="Back to Users">
+                <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                <span class="visually-hidden">Back</span>
+            </button>
+        </div>
     </div>
 }
 
 @code {
     [Parameter] public int id { get; set; }
     private string? error;
-    private string? actionError;
     private bool loading = true;
-    private bool adding = false;
     private UserDto? user;
+    private bool deletingUser = false;
+
     private List<LibraryDto> library = new();
     private List<BookDto> books = new();
     private List<ReviewDto> reviews = new();
+    private UserReadingStatsDto? stats;
+    private string? actionError;
+    private bool adding = false;
     private int selectedBookId = 0;
-    private ShelfType selectedShelf = ShelfType.WantToRead;
+    private readonly Dictionary<int, ShelfType> pendingShelves = new();
+    private List<BookDto> recommendations = new(); // (kept if used elsewhere)
+
+    private List<GenreSlice> readGenreSlices = new();
+    private int totalReadBooks;
+    private int totalPagesRead;
+    private string pieGradient = string.Empty;
+
+    // Multi-genre recommendation support
+    private readonly List<string> topGenrePriority = new();
+    private List<BookDto> topGenreRecommendations = new();
+    private string? topGenreName;
+
+    private readonly HashSet<int> reviewedLibraryIds = new();
+
+    private readonly ShelfType[] shelfOrder = new[] { ShelfType.WantToRead, ShelfType.CurrentlyReading, ShelfType.Read };
+    private static string ShelfTitle(ShelfType s) => s switch
+    {
+        ShelfType.WantToRead => "Want to Read",
+        ShelfType.CurrentlyReading => "Currently Reading",
+        ShelfType.Read => "Read",
+        _ => s.ToString()
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,22 +313,373 @@ else
                 .Where(r => r.Library?.Book is not null)
                 .ToList();
 
+            RebuildReviewedSet();
+
             books = (await BooksApi.GetBooksAsync())
                 .Where(b => !b.IsDeleted)
                 .OrderBy(b => b.Title)
                 .ToList();
+
+            stats = await UsersApi.GetUserStatsAsync(id);
+
+            BuildReadGenreData();
+            BuildTopGenresRecommendations();
+            BuildPieGradientFromRead();
+            ComputeRecommendations();
         }
-        catch (Exception ex)
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void RebuildReviewedSet()
+    {
+        reviewedLibraryIds.Clear();
+        foreach (var r in reviews)
         {
-            error = ex.Message;
-        }
-        finally
-        {
-            loading = false;
+            var libId = r.Library?.Id;
+            if (libId.HasValue) reviewedLibraryIds.Add(libId.Value);
         }
     }
 
-    private async Task AddToLibrary() { /* existing code unchanged */ }
-    private async Task ChangeShelf(LibraryDto item, ShelfType newShelf) { /* unchanged */ }
-    private async Task Remove(LibraryDto item) { /* unchanged */ }
+    private void BuildReadGenreData()
+    {
+        readGenreSlices.Clear();
+        var readBooks = library
+            .Where(l => l.ShelfType == ShelfType.Read && l.Book is not null)
+            .Select(l => l.Book!)
+            .ToList();
+
+        totalReadBooks = readBooks.Count;
+        totalPagesRead = readBooks.Sum(b => b.PageCount);
+        if (totalReadBooks == 0) return;
+
+        var groups = readBooks
+            .GroupBy(b => string.IsNullOrWhiteSpace(b.Genre) ? "Unknown" : b.Genre)
+            .Select(g => new { Genre = g.Key, Count = g.Count() })
+            .OrderByDescending(g => g.Count)
+            .ToList();
+
+        var colors = new[] { "#7b5cd6", "#cdbbf8", "#5b8def", "#57c4e5", "#ffa94d", "#ff6b6b", "#51cf66", "#845ef7" };
+        double cumulative = 0; int idx = 0;
+
+        foreach (var g in groups)
+        {
+            var pct = (double)g.Count * 100 / totalReadBooks;
+            readGenreSlices.Add(new GenreSlice(
+                g.Genre,
+                g.Count,
+                pct,
+                colors[idx % colors.Length],
+                cumulative,
+                cumulative + pct));
+            cumulative += pct;
+            idx++;
+        }
+    }
+
+    // Multi-genre recommendation builder
+    private void BuildTopGenresRecommendations()
+    {
+        topGenreRecommendations.Clear();
+        topGenrePriority.Clear();
+        topGenreName = null;
+
+        if (readGenreSlices.Count == 0) return;
+
+        foreach (var slice in readGenreSlices.OrderByDescending(s => s.Count).Take(3))
+            topGenrePriority.Add(slice.Label);
+
+        topGenreName = topGenrePriority.FirstOrDefault();
+
+        var owned = new HashSet<int>(library.Select(l => l.BookId));
+        const int target = 8;
+
+        foreach (var g in topGenrePriority)
+        {
+            if (topGenreRecommendations.Count >= target) break;
+
+            var picks = books
+                .Where(b => !owned.Contains(b.Id) &&
+                            !string.IsNullOrWhiteSpace(b.Genre) &&
+                            string.Equals(b.Genre, g, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(b => b.Title)
+                .Take(target - topGenreRecommendations.Count)
+                .ToList();
+
+            topGenreRecommendations.AddRange(picks);
+        }
+
+        if (topGenreRecommendations.Count < target)
+        {
+            var prioritySet = new HashSet<string>(topGenrePriority, StringComparer.OrdinalIgnoreCase);
+            var fillers = books
+                .Where(b => !owned.Contains(b.Id) &&
+                            (string.IsNullOrWhiteSpace(b.Genre) || !prioritySet.Contains(b.Genre)))
+                .OrderBy(b => b.Title)
+                .Take(target - topGenreRecommendations.Count)
+                .ToList();
+            topGenreRecommendations.AddRange(fillers);
+        }
+    }
+
+    private void BuildPieGradientFromRead()
+    {
+        pieGradient = readGenreSlices.Count == 0
+            ? "#e9ecef 0 100%"
+            : string.Join(", ",
+                readGenreSlices.Select(s => $"{s.Color} {s.StartPercent:F2}% {s.EndPercent:F2}%"));
+    }
+
+    private void ComputeRecommendations()
+    {
+        recommendations.Clear();
+        var owned = new HashSet<int>(library.Select(l => l.BookId));
+
+        var readBooks = library
+            .Where(l => l.ShelfType == ShelfType.Read && l.Book is not null)
+            .Select(l => l.Book!)
+            .ToList();
+
+        var genreWeights = readBooks
+            .Where(b => !string.IsNullOrWhiteSpace(b.Genre))
+            .GroupBy(b => b.Genre!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        var authorWeights = readBooks
+            .Where(b => !string.IsNullOrWhiteSpace(b.Author))
+            .GroupBy(b => b.Author!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        if (genreWeights.Count == 0 && authorWeights.Count == 0)
+        {
+            recommendations = books.Where(b => !owned.Contains(b.Id)).Take(6).ToList();
+            return;
+        }
+
+        const double GenreWeight = 2.0;
+        const double AuthorWeight = 3.0;
+
+        var scored = books
+            .Where(b => !owned.Contains(b.Id))
+            .Select(b =>
+            {
+                double score = 0;
+                if (!string.IsNullOrWhiteSpace(b.Genre) && genreWeights.TryGetValue(b.Genre, out var gc))
+                    score += GenreWeight * gc;
+                if (!string.IsNullOrWhiteSpace(b.Author) && authorWeights.TryGetValue(b.Author, out var ac))
+                    score += AuthorWeight * ac;
+                return new { b, score };
+            })
+            .Where(x => x.score > 0)
+            .OrderByDescending(x => x.score)
+            .ThenBy(x => x.b.Title, StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .Select(x => x.b)
+            .ToList();
+
+        recommendations = scored.Count > 0
+            ? scored
+            : books.Where(b => !owned.Contains(b.Id)).Take(6).ToList();
+    }
+
+    private async Task AddToLibrary()
+    {
+        actionError = null;
+        if (selectedBookId <= 0) { actionError = "Select a book."; return; }
+        await AddById(selectedBookId);
+        selectedBookId = 0;
+    }
+
+    private async Task AddRecToLibrary(BookDto book) => await AddById(book.Id);
+
+    private async Task AddById(int bookId)
+    {
+        adding = true;
+        try
+        {
+            var created = await UsersApi.AddToLibraryAsync(id, bookId, ShelfType.WantToRead);
+            if (created is null) { actionError = "Already in library or failed."; return; }
+
+            var lib = await UsersApi.GetUserLibraryAsync(id);
+            library = lib.Where(l => !l.IsDeleted && l.Book is not null).ToList();
+
+            BuildReadGenreData();
+            BuildTopGenresRecommendations();
+            BuildPieGradientFromRead();
+            ComputeRecommendations();
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+        finally { adding = false; }
+    }
+
+    private void OnShelfChanged(LibraryDto item, ShelfType newShelf)
+    {
+        if (newShelf == item.ShelfType)
+            pendingShelves.Remove(item.Id);
+        else
+            pendingShelves[item.Id] = newShelf;
+    }
+
+    private async Task SaveShelf(LibraryDto item)
+    {
+        actionError = null;
+        if (!pendingShelves.TryGetValue(item.Id, out var newShelf)) return;
+
+        var ok = await UsersApi.UpdateLibraryShelfAsync(id, item.Id, newShelf);
+        if (!ok) { actionError = "Failed to update shelf."; return; }
+
+        var found = library.FirstOrDefault(x => x.Id == item.Id);
+        if (found is not null)
+            library[library.IndexOf(found)] = found with { ShelfType = newShelf };
+
+        pendingShelves.Remove(item.Id);
+
+        BuildReadGenreData();
+        BuildTopGenresRecommendations();
+        BuildPieGradientFromRead();
+        ComputeRecommendations();
+        StateHasChanged();
+    }
+
+    private void CancelShelf(LibraryDto item) => pendingShelves.Remove(item.Id);
+
+    private async Task Remove(LibraryDto item)
+    {
+        actionError = null;
+        var ok = await UsersApi.DeleteLibraryItemAsync(id, item.Id);
+        if (!ok) { actionError = "Failed to remove."; return; }
+
+        library.RemoveAll(x => x.Id == item.Id);
+        pendingShelves.Remove(item.Id);
+
+        BuildReadGenreData();
+        BuildTopGenresRecommendations();
+        BuildPieGradientFromRead();
+        ComputeRecommendations();
+    }
+
+    private RenderFragment LibraryCard(LibraryDto item) => builder =>
+    {
+        var current = item.ShelfType;
+        var value = pendingShelves.TryGetValue(item.Id, out var p) ? p : current;
+        var changed = value != current;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "shelf-item");
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "card h-100 shadow-sm");
+        builder.OpenElement(4, "div");
+        builder.AddAttribute(5, "class", "card-body d-flex flex-column gap-2");
+
+        builder.OpenElement(6, "div");
+        builder.OpenElement(7, "strong");
+        builder.OpenComponent<NavLink>(8);
+        builder.AddAttribute(9, "class", "text-decoration-none book-title-link");
+        builder.AddAttribute(10, "href", $"/books/{item.BookId}");
+        builder.AddAttribute(11, "ChildContent", (RenderFragment)(b2 => b2.AddContent(12, item.Book!.Title)));
+        builder.CloseComponent();
+        builder.CloseElement();
+        builder.OpenElement(13, "div");
+        builder.AddAttribute(14, "class", "text-muted small");
+        builder.AddContent(15, $"by {item.Book!.Author}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(16, "div");
+        builder.AddAttribute(17, "class", "mt-auto d-flex align-items-center gap-2 flex-wrap");
+
+        builder.OpenElement(18, "select");
+        builder.AddAttribute(19, "class", "form-select form-select-sm w-auto");
+        builder.AddAttribute(20, "value", value);
+        builder.AddAttribute(21, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this,
+            e => OnShelfChanged(item, Enum.Parse<ShelfType>(e.Value?.ToString() ?? nameof(ShelfType.WantToRead)))));
+        foreach (var s in Enum.GetValues<ShelfType>())
+        {
+            builder.OpenElement(22, "option");
+            builder.AddAttribute(23, "value", s);
+            if (Equals(s, value)) builder.AddAttribute(24, "selected", true);
+            builder.AddContent(25, s.ToString());
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+
+        if (changed)
+        {
+            builder.OpenElement(26, "button");
+            builder.AddAttribute(27, "class", "btn btn-sm btn-success");
+            builder.AddAttribute(28, "title", "Save change");
+            builder.AddAttribute(29, "onclick", EventCallback.Factory.Create(this, () => SaveShelf(item)));
+            builder.AddMarkupContent(30, "<span class=\"bi bi-check-lg\"></span>");
+            builder.CloseElement();
+
+            builder.OpenElement(31, "button");
+            builder.AddAttribute(32, "class", "btn btn-sm btn-outline-secondary");
+            builder.AddAttribute(33, "title", "Cancel change");
+            builder.AddAttribute(34, "onclick", EventCallback.Factory.Create(this, () => CancelShelf(item)));
+            builder.AddMarkupContent(35, "<span class=\"bi bi-x-lg\"></span>");
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(36, "button");
+        builder.AddAttribute(37, "class", "btn btn-sm btn-outline-info btn-icon");
+        builder.AddAttribute(38, "title", "Details");
+        builder.AddAttribute(39, "onclick", EventCallback.Factory.Create(this, () => Nav.NavigateTo($"/books/{item.BookId}")));
+        builder.AddMarkupContent(40, "<span class=\"bi bi-book\" aria-hidden=\"true\"></span><span class=\"visually-hidden\">Details</span>");
+        builder.CloseElement();
+
+        if (item.ShelfType == ShelfType.Read)
+        {
+            builder.OpenElement(41, "button");
+            builder.AddAttribute(42, "class", "btn btn-sm btn-outline-primary");
+            builder.AddAttribute(43, "title", "Add Review");
+            builder.AddAttribute(44, "onclick", EventCallback.Factory.Create(this, () => Nav.NavigateTo($"/reviews/new/{id}/{item.Id}")));
+            builder.AddMarkupContent(45, "<span class=\"bi bi-chat-left-text\"></span>");
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(46, "button");
+        builder.AddAttribute(47, "class", "btn btn-sm btn-outline-danger");
+        builder.AddAttribute(48, "title", "Remove");
+        builder.AddAttribute(49, "onclick", EventCallback.Factory.Create(this, () => Remove(item)));
+        builder.AddMarkupContent(50, "<span class=\"bi bi-trash\"></span>");
+        builder.CloseElement();
+
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private async Task DeleteReview(int reviewId)
+    {
+        actionError = null;
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this review?")) return;
+        try
+        {
+            var ok = await ReviewsApi.DeleteReviewAsync(reviewId);
+            if (!ok) { actionError = "Failed to delete review."; return; }
+            reviews.RemoveAll(r => r.Id == reviewId);
+            RebuildReviewedSet();
+            ComputeRecommendations();
+            StateHasChanged();
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    private async Task DeleteUser()
+    {
+        actionError = null;
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this user?")) return;
+        try
+        {
+            deletingUser = true;
+            var ok = await UsersApi.DeleteUserAsync(id);
+            if (!ok) { actionError = "Failed to delete user."; return; }
+            Nav.NavigateTo("/users");
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+        finally { deletingUser = false; }
+    }
+
+    private record GenreSlice(string Label, int Count, double Percent, string Color, double StartPercent, double EndPercent);
 }

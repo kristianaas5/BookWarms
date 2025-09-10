@@ -3,9 +3,11 @@
 @inject BooksApiClient Api
 @inject NavigationManager Nav
 
-<h1>Books</h1>
+<div class="d-flex align-items-center gap-2 mb-2">
+    <h1 class="mb-0">Books</h1>
+</div>
 
-<div class="d-flex align-items-center gap-2 my-3">
+<div class="d-flex align-items-center gap-2 my-3 flex-nowrap">
     <div class="search-bar flex-grow-1">
         <span class="search-icon bi bi-search" aria-hidden="true"></span>
         <input class="form-control search-input" placeholder="Search books..."
@@ -18,8 +20,12 @@
             </button>
         }
     </div>
-    <button class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/books/edit"))">
-        <span class="bi bi-plus-circle me-1"></span>Add
+</div>
+
+<div class="d-flex justify-content-end mb-3">
+    <button class="btn btn-primary btn-lg btn-icon" title="Add book" @onclick='() => Nav.NavigateTo("/books/edit")'>
+        <span class="bi bi-plus-circle" aria-hidden="true"></span>
+        <span class="visually-hidden">Add</span>
     </button>
 </div>
 
@@ -49,29 +55,18 @@ else
                     @Header("Author", "Author")
                     @Header("Genre", "Genre")
                     @Header("Pages", "PageCount")
-                    <th style="width:140px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var b in items)
                 {
                     <tr>
-                        <td>@b.Title</td>
+                        <td>
+                            <NavLink class="text-decoration-none book-title-link" href="@($"/books/{b.Id}")">@b.Title</NavLink>
+                        </td>
                         <td>@b.Author</td>
                         <td>@b.Genre</td>
                         <td>@b.PageCount</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-secondary me-1" title="Edit"
-                                    @onclick="@(() => Nav.NavigateTo($"/books/edit/{b.Id}"))">
-                                <span class="bi bi-pencil-square"></span>
-                                <span class="visually-hidden">Edit</span>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" title="Delete"
-                                    @onclick="@(() => ConfirmDelete(b.Id))">
-                                <span class="bi bi-trash"></span>
-                                <span class="visually-hidden">Delete</span>
-                            </button>
-                        </td>
                     </tr>
                 }
             </tbody>
@@ -79,27 +74,7 @@ else
     </div>
 
     <div class="d-flex align-items-center justify-content-between mt-2">
-        <div>
-            <select class="form-select form-select-sm d-inline w-auto" @onchange="ChangePageSize">
-                <option value="10" selected="@(@pageSize==10)">10</option>
-                <option value="25" selected="@(@pageSize==25)">25</option>
-                <option value="50" selected="@(@pageSize==50)">50</option>
-            </select>
-            <span class="ms-2 text-muted">Total: @totalCount</span>
-        </div>
-        <nav>
-            <ul class="pagination pagination-sm mb-0">
-                <li class="page-item @(page<=1 ? "disabled" : null)">
-                    <button class="page-link" @onclick="@(()=>GoTo(page-1))">Prev</button>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">Page <Component /></span>
-                </li>
-                <li class="page-item @((page*pageSize>=totalCount) ? "disabled" : null)">
-                    <button class="page-link" @onclick="@(()=>GoTo(page+1))">Next</button>
-                </li>
-            </ul>
-        </nav>
+        <span class="text-muted">Total: @items.Count</span>
     </div>
 }
 
@@ -109,9 +84,8 @@ else
     private string searchTerm = string.Empty;
     private string sortBy = "Title";
     private bool desc = false;
-    private int page = 1;
-    private int pageSize = 10;
-    private int totalCount = 0;
+
+    private List<BookDto> all = new();
     private List<BookDto> items = new();
     private CancellationTokenSource? _cts;
 
@@ -123,21 +97,44 @@ else
         error = null;
         try
         {
-            var result = await Api.SearchBooksAsync(searchTerm, sortBy, desc, page, pageSize);
-            items = result.Items.Where(b => !b.IsDeleted).ToList();
-            totalCount = result.TotalCount;
+            var data = await Api.GetBooksAsync();
+            all = data.Where(b => !b.IsDeleted).ToList();
+            ApplyFilterAndSort();
         }
         catch (Exception ex)
         {
             error = $"Failed to load books: {ex.Message}";
             items = new();
-            totalCount = 0;
         }
         finally
         {
             loading = false;
             StateHasChanged();
         }
+    }
+
+    private void ApplyFilterAndSort()
+    {
+        IEnumerable<BookDto> q = all;
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var t = searchTerm.Trim();
+            q = q.Where(b =>
+                (!string.IsNullOrEmpty(b.Title) && b.Title.Contains(t, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(b.Author) && b.Author.Contains(t, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(b.Genre) && b.Genre.Contains(t, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        q = sortBy switch
+        {
+            "Author" => desc ? q.OrderByDescending(x => x.Author) : q.OrderBy(x => x.Author),
+            "Genre" => desc ? q.OrderByDescending(x => x.Genre) : q.OrderBy(x => x.Genre),
+            "PageCount" => desc ? q.OrderByDescending(x => x.PageCount) : q.OrderBy(x => x.PageCount),
+            _ => desc ? q.OrderByDescending(x => x.Title) : q.OrderBy(x => x.Title)
+        };
+
+        items = q.ToList();
     }
 
     private RenderFragment Header(string caption, string key) => builder =>
@@ -171,8 +168,8 @@ else
             await Task.Delay(300, token);
             if (!token.IsCancellationRequested)
             {
-                page = 1;
-                await LoadAsync();
+                ApplyFilterAndSort();
+                StateHasChanged();
             }
         }
         catch (TaskCanceledException) { }
@@ -182,44 +179,15 @@ else
     {
         if (string.IsNullOrWhiteSpace(searchTerm)) return;
         searchTerm = string.Empty;
-        page = 1;
-        await LoadAsync();
+        ApplyFilterAndSort();
+        await Task.CompletedTask;
     }
 
     private async Task SortBy(string key)
     {
         if (sortBy == key) desc = !desc;
         else { sortBy = key; desc = false; }
-        page = 1;
-        await LoadAsync();
+        ApplyFilterAndSort();
+        await Task.CompletedTask;
     }
-
-    private async Task ChangePageSize(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var size) && size > 0)
-        {
-            pageSize = size;
-            page = 1;
-            await LoadAsync();
-        }
-    }
-
-    private async Task GoTo(int p)
-    {
-        if (p < 1) return;
-        if ((p - 1) * pageSize >= totalCount) return;
-        page = p;
-        await LoadAsync();
-    }
-
-    private async Task ConfirmDelete(int id)
-    {
-        if (!await jsConfirm($"Delete book #{id}?")) return;
-        var ok = await Api.DeleteBookAsync(id);
-        if (ok) await LoadAsync();
-    }
-
-    // minimal JS confirm without importing JS: fallback to window.confirm via IJSRuntime
-    [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
-    private ValueTask<bool> jsConfirm(string message) => JS.InvokeAsync<bool>("confirm", message);
 }

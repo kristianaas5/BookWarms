@@ -1,0 +1,96 @@
+/* HERO */
+.home-hero {
+    padding-top: 4rem;
+    padding-bottom: 3rem;
+    max-width: 980px;
+}
+.hero-icon { font-size: 2.4rem; vertical-align: -6px; }
+.hero-lead { max-width: 780px; }
+.gradient-title {
+    background: linear-gradient(90deg, var(--lib-primary), #5b8def 55%, #57c4e5);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+.hero-btn {
+    min-width: 15rem;
+    transition: transform .15s ease, box-shadow .25s ease;
+}
+.hero-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1.25rem rgba(46,36,79,.15);
+}
+
+/* QUICK ACTION BAR */
+.quick-actions .action-bar {
+    margin-top: 1.25rem;
+    background: var(--lib-surface);
+    border: 1px solid var(--lib-border);
+    border-radius: 1rem;
+    padding: .75rem .9rem;
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+.quick-actions .btn-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: .75rem;
+    border: 1px solid var(--lib-border);
+    background: #fff;
+    transition: background .2s, transform .15s;
+}
+.quick-actions .btn-icon:hover {
+    background: var(--lib-secondary);
+    transform: translateY(-2px);
+}
+.quick-actions .btn-icon .bi { font-size: 1.15rem; }
+
+/* FEATURE CARDS */
+.feature-card {
+    border: 1px solid var(--lib-border);
+    transition: border-color .2s, box-shadow .25s, transform .15s;
+}
+.feature-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--lib-primary-600);
+    box-shadow: 0 .75rem 1.6rem -0.4rem rgba(46,36,79,.20);
+}
+.feature-icon {
+    font-size: 2.1rem;
+}
+
+/* STATS */
+.quick-stats .stat-tile {
+    background: var(--lib-surface);
+    border: 1px solid var(--lib-border);
+    border-radius: .75rem;
+    padding: .9rem 1rem 1.05rem;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(46,36,79,.06);
+}
+.quick-stats .stat-tile .label {
+    font-size: .7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--lib-muted);
+    font-weight: 600;
+}
+.quick-stats .stat-tile .value {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--lib-primary-600);
+}
+
+/* RESPONSIVE */
+@media (max-width: 575.98px) {
+    .home-hero {
+        padding-top: 3.1rem;
+        padding-bottom: 2.25rem;
+    }
+    .gradient-title {
+        font-size: clamp(2.6rem, 9vw, 3.7rem);
+    }
+}

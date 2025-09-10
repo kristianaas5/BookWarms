@@ -5,11 +5,22 @@
 
 <h1>Users</h1>
 
-<div class="d-flex align-items-center gap-2 my-3">
-    <input class="form-control" style="max-width: 420px;" placeholder="Filter users..."
-           @bind="filter" @bind:event="oninput" />
-    <button class="btn btn-primary" @onclick="@(()=> Nav.NavigateTo("/users/edit"))">
-        <span class="bi bi-plus-circle me-1"></span>Add
+<div class="d-flex align-items-center gap-2 my-3 flex-nowrap">
+    <div class="search-bar flex-grow-1">
+        <span class="search-icon bi bi-search" aria-hidden="true"></span>
+        <input class="form-control search-input" placeholder="Filter users..."
+               value="@filter" @oninput="DebouncedFilter" />
+        @if (!string.IsNullOrWhiteSpace(filter))
+        {
+            <button type="button" class="clear-btn" title="Clear" @onclick="ClearFilter">
+                <span class="bi bi-x-circle-fill" aria-hidden="true"></span>
+                <span class="visually-hidden">Clear filter</span>
+            </button>
+        }
+    </div>
+    <button class="btn btn-primary btn-icon btn-lg" title="Add user" @onclick="@(()=> Nav.NavigateTo("/users/edit"))">
+        <span class="bi bi-plus-circle" aria-hidden="true"></span>
+        <span class="visually-hidden">Add</span>
     </button>
 </div>
 
@@ -33,7 +44,7 @@ else
                 <tr>
                     <th>Username</th>
                     <th>Email</th>
-                    <th style="width:140px;">Actions</th>
+                    <th class="text-center">Books Read</th>
                 </tr>
             </thead>
             <tbody>
@@ -44,17 +55,15 @@ else
                             <a class="text-decoration-none" href="@($"/users/{u.Id}/details")">@u.Username</a>
                         </td>
                         <td>@u.Email</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-secondary me-1" title="Edit"
-                                    @onclick="@(()=> Nav.NavigateTo($"/users/edit/{u.Id}"))">
-                                <span class="bi bi-pencil-square"></span>
-                                <span class="visually-hidden">Edit</span>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" title="Delete"
-                                    @onclick="@(()=>ConfirmDelete(u.Id))">
-                                <span class="bi bi-trash"></span>
-                                <span class="visually-hidden">Delete</span>
-                            </button>
+                        <td class="text-center">
+                            @if (countsLoading)
+                            {
+                                <span class="text-muted">…</span>
+                            }
+                            else
+                            {
+                                @GetReadCount(u.Id)
+                            }
                         </td>
                     </tr>
                 }
@@ -67,18 +76,57 @@ else
     private List<UserDto>? users;
     private string? error;
     private string filter = string.Empty;
+    private CancellationTokenSource? _cts;
+
+    // All?time read counts (ShelfType.Read) per user
+    private readonly Dictionary<int,int> booksReadCounts = new();
+    private bool countsLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             users = (await Api.GetUsersAsync()).Where(u => !u.IsDeleted).ToList();
+            await LoadReadCountsAsync();
         }
         catch (Exception ex)
         {
             error = $"Failed to load users: {ex.Message}";
         }
     }
+
+    private async Task LoadReadCountsAsync()
+    {
+        if (users is null || users.Count == 0)
+        {
+            countsLoading = false;
+            return;
+        }
+
+        countsLoading = true;
+
+        var tasks = users.Select(async u =>
+        {
+            try
+            {
+                // Get library and count READ shelf items
+                var lib = await Api.GetUserLibraryAsync(u.Id);
+                var readCount = lib.Where(l => !l.IsDeleted && l.ShelfType == ShelfType.Read).Count();
+                booksReadCounts[u.Id] = readCount;
+            }
+            catch
+            {
+                booksReadCounts[u.Id] = 0;
+            }
+        });
+
+        await Task.WhenAll(tasks);
+        countsLoading = false;
+        StateHasChanged();
+    }
+
+    private int GetReadCount(int userId) =>
+        booksReadCounts.TryGetValue(userId, out var v) ? v : 0;
 
     private List<UserDto> Displayed =>
         string.IsNullOrWhiteSpace(filter)
@@ -88,16 +136,27 @@ else
                 (!string.IsNullOrEmpty(u.Email) && u.Email.Contains(filter, StringComparison.OrdinalIgnoreCase))
               ).OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase).ToList() ?? new();
 
-    [Inject] private Microsoft.JSInterop.IJSRuntime JS { get; set; } = default!;
-    private async Task ConfirmDelete(int id)
+    private async Task DebouncedFilter(ChangeEventArgs e)
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete user #{id}?")) return;
-        var ok = await Api.DeleteUserAsync(id);
-        if (ok && users is not null)
+        filter = e.Value?.ToString() ?? string.Empty;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+        try
         {
-            var found = users.FirstOrDefault(x => x.Id == id);
-            if (found is not null) users.Remove(found);
-            StateHasChanged();
+            await Task.Delay(300, token);
+            if (!token.IsCancellationRequested)
+            {
+                StateHasChanged();
+            }
         }
+        catch (TaskCanceledException) { }
+    }
+
+    private Task ClearFilter()
+    {
+        filter = string.Empty;
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }

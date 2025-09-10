@@ -1,118 +1,114 @@
 ﻿using Xunit;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using BookWarms.Controllers;
-using BookWarms.Models;
 using BookWarms.Services;
 using BookWarms.Data;
+using BookWarms.Models;
+using System;
 
 public class ReviewControllerTests
 {
-    private readonly ReviewController _controller;
-    private readonly AppDbContext _context;
-
-    public ReviewControllerTests()
+    private static (ReviewController controller, AppDbContext ctx, int libraryId, int bookId) CreateControllerSetup()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(databaseName: "ReviewTestDb")
+            .UseInMemoryDatabase($"ReviewControllerTestsDb_{Guid.NewGuid()}")
             .Options;
 
-        _context = new AppDbContext(options);
+        var ctx = new AppDbContext(options);
 
-        // Изчистваме DB при стартиране на теста
-        _context.Reviews.RemoveRange(_context.Reviews);
-        _context.Libraries.RemoveRange(_context.Libraries);
-        _context.Books.RemoveRange(_context.Books);
-        _context.Users.RemoveRange(_context.Users);
-        _context.SaveChanges();
+        var user = new User { Username = "U", Email = "u@example.com" };
+        var book = new Book { Title = "T", Author = "A", Genre = "G", Description = "D", PageCount = 100 };
+        ctx.Users.Add(user);
+        ctx.Books.Add(book);
+        ctx.SaveChanges();
 
-        // Създаваме тестов User и Book
-        var user = new User { Id = 1, Username = "TestUser" };
-        var book = new Book { Id = 1, Title = "Test Book", Author = "Author", Genre = "Genre", Description = "Desc", PageCount = 123 };
-
-        _context.Users.Add(user);
-        _context.Books.Add(book);
-        _context.Libraries.Add(new Library
+        var lib = new Library
         {
-            Id = 1,
-            UserId = 1,
-            BookId = 1,
-            ShelfType = ShelfType.Read // важно: само от Read рафт може да има Review
-        });
-        _context.SaveChanges();
+            UserId = user.Id,
+            BookId = book.Id,
+            ShelfType = ShelfType.Read
+        };
+        ctx.Libraries.Add(lib);
+        ctx.SaveChanges();
 
-        var reviewService = new ReviewService(_context);
-        _controller = new ReviewController(reviewService);
+        var controller = new ReviewController(new ReviewService(ctx));
+        return (controller, ctx, lib.Id, book.Id);
     }
 
     [Fact]
-    public async Task AddReview_Success_WhenBookIsRead()
+    public async Task CreateReview_Success_ReturnsOk()
     {
-        var review = new Review { Id = 1, LibraryId = 1, ReviewText = "Great book!", Rating = 5 };
+        var (controller, _, libraryId, _) = CreateControllerSetup();
 
-        var result = await _controller.Create(review);
+        var req = new ReviewController.CreateReviewRequest(libraryId, 5, "Great");
+        var result = await controller.Create(req);
 
-        var createdAt = Assert.IsType<CreatedAtActionResult>(result);
-        var returnedReview = Assert.IsType<Review>(createdAt.Value);
-
-        Assert.Equal(review.ReviewText, returnedReview.ReviewText);
-        Assert.Equal(5, returnedReview.Rating);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var review = Assert.IsType<Review>(ok.Value);
+        Assert.Equal(5, review.Rating);
+        Assert.Equal("Great", review.ReviewText);
+        Assert.False(review.IsDeleted);
     }
 
     [Fact]
-    public async Task GetReviews_ReturnsListOfReviews()
+    public async Task GetByBook_ReturnsReviewsWithAverage()
     {
-        _context.Reviews.Add(new Review { Id = 2, LibraryId = 1, ReviewText = "Nice!", Rating = 4 });
-        _context.SaveChanges();
+        var (controller, _, libraryId, bookId) = CreateControllerSetup();
 
-        var result = await _controller.GetAll();
+        await controller.Create(new ReviewController.CreateReviewRequest(libraryId, 4, "Nice"));
+        await controller.Create(new ReviewController.CreateReviewRequest(libraryId, 2, "Ok"));
 
-        var okResult = Assert.IsType<OkObjectResult>(result);
-        var reviews = Assert.IsType<List<Review>>(okResult.Value);
+        var result = await controller.GetByBook(bookId);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var dto = Assert.IsType<ReviewController.BookReviewsDto>(ok.Value);
 
-        Assert.True(reviews.Count >= 1);
+        Assert.Equal(2, dto.Reviews.Count);
+        Assert.InRange(dto.AverageRating, 2.9, 3.1); // 3.0 average
     }
 
     [Fact]
-    public async Task UpdateReview_ReturnsBadRequest_WhenIdMismatch()
+    public async Task Delete_And_Restore_Works()
     {
-        var review = new Review { Id = 2, LibraryId = 1, ReviewText = "Mismatch", Rating = 3 };
+        var (controller, _, libraryId, bookId) = CreateControllerSetup();
 
-        var result = await _controller.Update(1, review);
+        var create = await controller.Create(new ReviewController.CreateReviewRequest(libraryId, 5, "Temp"));
+        var review = (Review)((OkObjectResult)create).Value!;
 
+        var del = await controller.Delete(review.Id);
+        Assert.IsType<NoContentResult>(del);
+
+        // After delete it should disappear from list
+        var afterDelete = await controller.GetByBook(bookId);
+        var okAfterDelete = Assert.IsType<OkObjectResult>(afterDelete);
+        var dtoAfterDelete = Assert.IsType<ReviewController.BookReviewsDto>(okAfterDelete.Value);
+        Assert.DoesNotContain(dtoAfterDelete.Reviews, r => r.Id == review.Id);
+
+        var restore = await controller.Restore(review.Id);
+        Assert.IsType<OkResult>(restore);
+
+        var afterRestore = await controller.GetByBook(bookId);
+        var okAfterRestore = Assert.IsType<OkObjectResult>(afterRestore);
+        var dtoAfterRestore = Assert.IsType<ReviewController.BookReviewsDto>(okAfterRestore.Value);
+        Assert.Contains(dtoAfterRestore.Reviews, r => r.Id == review.Id);
+    }
+
+    [Fact]
+    public async Task CreateReview_InvalidRating_ReturnsBadRequest()
+    {
+        var (controller, _, libraryId, _) = CreateControllerSetup();
+
+        var result = await controller.Create(new ReviewController.CreateReviewRequest(libraryId, 0, "Bad"));
         Assert.IsType<BadRequestObjectResult>(result);
     }
 
     [Fact]
-    public async Task UpdateReview_ReturnsNotFound_WhenReviewDoesNotExist()
+    public async Task CreateReview_InvalidLibrary_ReturnsBadRequest()
     {
-        var review = new Review { Id = 999, LibraryId = 1, ReviewText = "Not Found", Rating = 2 };
+        var (controller, _, _, _) = CreateControllerSetup();
 
-        var result = await _controller.Update(999, review);
-
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Equal("Review not found", notFoundResult.Value);
-    }
-
-    [Fact]
-    public async Task DeleteReview_ReturnsNoContent_WhenReviewExists()
-    {
-        var review = new Review { Id = 3, LibraryId = 1, ReviewText = "To be deleted", Rating = 4 };
-        _context.Reviews.Add(review);
-        _context.SaveChanges();
-
-        var result = await _controller.Delete(review.Id);
-
-        Assert.IsType<NoContentResult>(result);
-    }
-
-    [Fact]
-    public async Task DeleteReview_ReturnsNotFound_WhenReviewDoesNotExist()
-    {
-        var result = await _controller.Delete(9999);
-
-        Assert.IsType<NotFoundResult>(result);
+        var result = await controller.Create(new ReviewController.CreateReviewRequest(99999, 5, "Ghost"));
+        Assert.IsType<BadRequestObjectResult>(result);
     }
 }

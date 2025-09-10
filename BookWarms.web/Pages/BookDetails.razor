@@ -1,0 +1,203 @@
+@page "/books/{id:int}"
+@using BookWarms.web.Services
+@inject BooksApiClient BooksApi
+@inject ReviewsApiClient ReviewsApi
+@inject NavigationManager Nav
+@inject Microsoft.JSInterop.IJSRuntime JS
+
+<h3>Book Details</h3>
+
+@if (undoVisible)
+{
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <span>Book deleted.</span>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-link" @onclick="UndoDeleteBook" disabled="@undoRestoring">Undo</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick='() => { undoVisible=false; Nav.NavigateTo("/books"); }' disabled="@undoRestoring">Close</button>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+else if (loading)
+{
+    <p>Loading...</p>
+}
+else if (book is null)
+{
+    <p>Book not found.</p>
+}
+else if (book.IsDeleted)
+{
+    <p class="text-muted">This book is deleted (soft). You can still undo above until the timer expires.</p>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-body book-details-content">
+            <div class="book-header mb-2">
+                <h2 class="display-5 mb-0 book-title">@book.Title</h2>
+                <div class="book-actions">
+                    <button class="btn btn-outline-secondary btn-icon" title="Edit"
+                            @onclick='() => Nav.NavigateTo($"/books/edit/{book!.Id}")' disabled="@undoVisible">
+                        <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                        <span class="visually-hidden">Edit</span>
+                    </button>
+                    <button class="btn btn-outline-danger btn-icon" title="Delete" @onclick="DeleteBook" disabled="@deleting || undoVisible">
+                        <span class="bi bi-trash" aria-hidden="true"></span>
+                        <span class="visually-hidden">Delete</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-muted mb-3">@book.Author • @book.Genre • @book.PageCount pages</div>
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <strong>Average rating:</strong>
+                <span>@avg.ToString("0.0")/5</span>
+                <span class="text-warning">
+                    @for (var i = 1; i <= 5; i++)
+                    {
+                        <span class="bi @(i <= Math.Round(avg) ? "bi-star-fill" : "bi-star")"></span>
+                    }
+                </span>
+            </div>
+
+            <div class="mb-1">
+                <strong>Description</strong>
+                <p class="mb-0">@book.Description</p>
+            </div>
+        </div>
+    </div>
+
+    <h5>Reviews</h5>
+    @if (reviews.Count == 0)
+    {
+        <p class="text-muted">No reviews yet.</p>
+    }
+    else
+    {
+        <ul class="list-group reviews-list">
+            @foreach (var r in reviews.OrderByDescending(x => x.Date))
+            {
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div><strong>@r.Username</strong></div>
+                        <div>
+                            @for (var i = 1; i <= 5; i++)
+                            {
+                                <span class="bi @(i <= r.Rating ? "bi-star-fill text-warning" : "bi-star")"></span>
+                            }
+                        </div>
+                    </div>
+                    <div class="text-muted small">@r.Date.ToShortDateString()</div>
+                    <div class="mt-2">@r.ReviewText</div>
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="mt-3">
+        <button class="btn btn-secondary btn-icon" title="Back to Books" @onclick='() => Nav.NavigateTo("/books")'>
+            <span class="bi bi-arrow-left" aria-hidden="true"></span>
+            <span class="visually-hidden">Back to Books</span>
+        </button>
+    </div>
+}
+
+@code {
+    [Parameter] public int id { get; set; }
+    private string? error;
+    private bool loading = true;
+    private bool deleting = false;
+    private BookDto? book;
+    private double avg = 0;
+    private List<ReviewsApiClient.BookReviewItemDto> reviews = new();
+
+    // Undo state
+    private bool undoVisible;
+    private bool undoRestoring;
+    private CancellationTokenSource? undoCts;
+    private const int UndoSeconds = 8;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            book = await BooksApi.GetBookAsync(id);
+            if (book is null) { error = "Book not found."; return; }
+
+            var resp = await ReviewsApi.GetReviewsByBookAsync(id);
+            avg = resp.AverageRating;
+            reviews = resp.Reviews ?? new();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task DeleteBook()
+    {
+        if (book is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete '{book.Title}'?")) return;
+
+        deleting = true;
+        try
+        {
+            var ok = await BooksApi.DeleteBookAsync(book.Id);
+            if (!ok) { error = "Failed to delete book."; return; }
+
+            // Mark locally & show undo
+            book = book with { IsDeleted = true };
+            undoVisible = true;
+            undoCts?.Cancel();
+            undoCts = new CancellationTokenSource();
+            _ = AutoFinalizeDeleteAsync(undoCts.Token);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { deleting = false; }
+    }
+
+    private async Task AutoFinalizeDeleteAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(UndoSeconds), token);
+            if (!token.IsCancellationRequested)
+            {
+                undoVisible = false;
+                Nav.NavigateTo("/books");
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private async Task UndoDeleteBook()
+    {
+        if (book is null) return;
+        undoRestoring = true;
+        try
+        {
+            var ok = await BooksApi.RestoreBookAsync(book.Id);
+            if (ok)
+            {
+                undoCts?.Cancel();
+                undoVisible = false;
+                await LoadAsync();
+            }
+            else
+            {
+                error = "Undo failed.";
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { undoRestoring = false; }
+    }
+}
